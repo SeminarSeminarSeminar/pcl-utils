@@ -4,7 +4,7 @@ Ref: https://pcl.readthedocs.io/projects/tutorials/en/latest/index.html
 
 ## Prerequisites
 
-pcl library
+Point Cloud Library
 
 
 ## Build
