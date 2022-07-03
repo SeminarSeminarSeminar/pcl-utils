@@ -49,3 +49,20 @@ $ ./filter_voxel input.pcd output.pcd output_grid.pcd [LeafSize]
 
 ### Example
 
+## [Segmentation] Region Growing
+
+### Usage
+```
+$ ./seg_region input.pcd output.pcd [NumberOfNeighbors]
+```
+
+|parameter|default|description|
+|---|---|---|
+|NumberOfNeighbors|300|Allows to set the number of neighbours.|
+
+* Each vertical/horizontal surface will be saved to its own .pcd file
+(region_vertical_0.pcd, ..., region_horizontal_0.pcd, ...)
+
+* `output.pcd` includes gropus of red points which indicate points that could not be segmented.
+
+### Example
