@@ -36,4 +36,16 @@ $ ./filter_radius input.pcd output.pcd [RadiusSearch] [MinNeighborsInRadius]
 
 ### Example
 
+## [Filter] Voxel Grid
+
+### Usage
+```
+$ ./filter_voxel input.pcd output.pcd [LeafSize]
+```
+
+|parameter|default|description|
+|---|---|---|
+|LeafSize|0.05|Set the voxel grid leaf size.|
+
+### Example
 
