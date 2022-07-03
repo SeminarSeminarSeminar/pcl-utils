@@ -40,7 +40,7 @@ $ ./filter_radius input.pcd output.pcd [RadiusSearch] [MinNeighborsInRadius]
 
 ### Usage
 ```
-$ ./filter_voxel input.pcd output.pcd [LeafSize]
+$ ./filter_voxel input.pcd output.pcd output_grid.pcd [LeafSize]
 ```
 
 |parameter|default|description|
