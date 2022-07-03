@@ -1,5 +1,19 @@
 # pcl-utils
 
+## Prerequisites
+
+pcl library
+
+
+## Build
+```
+$ mkdir build && cd build
+$ cmake ..
+```
+
+Sample .pcd files are located in the `samples` directory.
+
+
 ## Concatenate multiple .pcd files
 
 ### Usage
