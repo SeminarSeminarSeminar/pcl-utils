@@ -82,3 +82,12 @@ $ ./seg_region input.pcd output.pcd [NumberOfNeighbors]
 * `output.pcd` includes gropus of red points which indicate points that could not be segmented.
 
 ### Example
+
+## [Segmentation] Adjacency Graph
+
+### Usage
+```
+$ ./gen_graph input.pcd 
+```
+
+### Example
