@@ -26,6 +26,7 @@ ADD_EXECUTABLE(filter_stat src/filter_stat.cpp)
 ADD_EXECUTABLE(filter_voxel src/filter_voxel.cpp)
 ADD_EXECUTABLE(seg_region src/seg_region.cpp)
 ADD_EXECUTABLE(gen_graph src/gen_graph.cpp)
+ADD_EXECUTABLE(visualize src/visualize.cc)
 
 # Linker options(-l)
 TARGET_LINK_LIBRARIES(concat ${PCL_LIBRARIES})
@@ -34,4 +35,5 @@ TARGET_LINK_LIBRARIES(filter_stat ${PCL_LIBRARIES})
 TARGET_LINK_LIBRARIES(filter_voxel ${PCL_LIBRARIES})
 TARGET_LINK_LIBRARIES(seg_region ${PCL_LIBRARIES})
 TARGET_LINK_LIBRARIES(gen_graph ${PCL_LIBRARIES})
+TARGET_LINK_LIBRARIES(visualize ${PCL_LIBRARIES})
 
