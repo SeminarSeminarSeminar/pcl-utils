@@ -34,20 +34,38 @@
 #define FLOOR_WALL          4
 #define CEILING_WALL        5
 
+#define MERGE_DIST_THRESH     (0.1)
+#define MERGE_ANGLE_THRESH     (20)
 #define ADJ_THRESHOLD       (1.5)
 
 using std::vector;
 using std::cout;
+
+float CalcMinDistance(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudA, pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudB, float target = 0){
+    float min = 100;
+    for(auto a_p : pCloudA->points){
+        for(auto b_p : pCloudB->points){
+            double distance = pcl::euclideanDistance(a_p, b_p);
+            if(distance < target) return distance;
+            if(min > distance) min = distance;
+            
+        }
+    }
+	return min;
+}
+
+
 
 class Segment{
 public:
     Segment(): mpCloud(new pcl::PointCloud<pcl::PointXYZRGB>){
 
     };
-    Segment(pcl::PointCloud<pcl::PointXYZRGB> cloud, Eigen::Vector4f planeCoef, float curvature, pcl::PointXYZ centroid):
+    Segment(pcl::PointCloud<pcl::PointXYZRGB> cloud, Eigen::Vector4f planeCoef, float curvature, pcl::PointXYZ centroid, int disabled):
         mpCloud(new pcl::PointCloud<pcl::PointXYZRGB>),mPlaneCoef(planeCoef), mCurvature(curvature), mCentroid(centroid){
         *mpCloud = cloud;
         mDegree = pcl::getAngle3D(planeCoef.cwiseAbs(), Eigen::Vector4f(0, 1, 0, 0), true);
+        mDisabled = disabled;
     };
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr mpCloud;
     Eigen::Vector4f mPlaneCoef;
@@ -55,13 +73,43 @@ public:
     float mDegree = 0;
     pcl::PointXYZ mCentroid;
     int mType = INVALID;    
+	int mDisabled = 0;
 };
+
+
+bool IsMerged(Segment s){
+    return s.mDisabled==1;
+}
 
 class AdjacencyGraph{
 public:
     AdjacencyGraph(){
 
     };
+    void MergeOverlappingSegments(){
+        // TODO: Merge overlaping point cloud
+        cout << "Node num before merged :" << mvSegments.size() <<"\n";
+        for(auto i = 0; i < mvSegments.size(); i++){
+            for(auto j = i+1; j < mvSegments.size(); j++){
+                if (mvSegments[i].mDisabled == 1) continue;
+                float degree = pcl::getAngle3D(mvSegments[i].mPlaneCoef, mvSegments[j].mPlaneCoef, true);
+                if(pcl::getAngle3D(mvSegments[i].mPlaneCoef, mvSegments[j].mPlaneCoef, true) > MERGE_ANGLE_THRESH) continue;                
+                double distance = CalcMinDistance(mvSegments[i].mpCloud, mvSegments[j].mpCloud, MERGE_DIST_THRESH);
+                
+                if(distance < MERGE_DIST_THRESH){
+                    *mvSegments[i].mpCloud += *mvSegments[j].mpCloud;
+                    for (auto pt: mvSegments[j].mpCloud->points){
+                        pt.rgb = mvSegments[i].mpCloud->points[0].rgb;
+                    }
+                    mvSegments[j].mDisabled = 1;
+                    //pcl::io::savePCDFile<pcl::PointXYZRGB>("merged_"+std::to_string(i)+"_"+std::to_string(j), *mvSegments[i].mpCloud); 
+                }
+            }
+        }
+        mvSegments.erase(std::remove_if(mvSegments.begin(), mvSegments.end(), IsMerged), mvSegments.end());
+        cout << "Node num before merged :" << mvSegments.size() <<"\n";
+        mNodenum = mvSegments.size();
+    }
     void ConstructGraph(){        
         mNodenum = mvSegments.size();
         
@@ -94,36 +142,34 @@ public:
         std::fill(&mpGraph[0], &mpGraph[mNodenum*mNodenum], INVALID_EDGE);
         for(auto i = 0; i < mNodenum; i++){
             for(auto j = i+1; j < mNodenum; j++){
-                float distance = pcl::euclideanDistance(mvSegments[i].mCentroid, mvSegments[j].mCentroid);
+                if(pcl::getAngle3D(mvSegments[i].mPlaneCoef.cwiseAbs(), mvSegments[j].mPlaneCoef, true) < 45) continue;
+                double distance = pcl::euclideanDistance(mvSegments[i].mCentroid, mvSegments[j].mCentroid);
+                //double distance = CalcMinDistance(mvSegments[i].mpCloud, mvSegments[j].mpCloud, ADJ_THRESHOLD);
+                cout << mvSegments[i].mpCloud->size() << " " << mvSegments[j].mpCloud->size() << " " << distance << "\n";
                 if(distance < ADJ_THRESHOLD){
                     int type1 = mvSegments[i].mType;
                     int type2 = mvSegments[j].mType;
+                    int type = INVALID_EDGE;
                     if (type1 > type2) std::swap(type1, type2);
                     if(type1 == WALL_CANDIDATE && type2 == WALL_CANDIDATE){
-                        mpGraph[i*mNodenum + j] = WALL_WALL;
-                        mpGraph[j*mNodenum + i] = WALL_WALL;
-                        mEdgenum++;
+                        type = WALL_WALL;
                     } else if(type1 == FLOOR_CANDIDATE && type2 == FLOOR_CANDIDATE){
-                        mpGraph[i*mNodenum + j] = FLOOR_FLOOR;
-                        mpGraph[j*mNodenum + i] = FLOOR_FLOOR;
-                        mEdgenum++;
+                        type = FLOOR_FLOOR;
                     } else if(type1 == CEILING_CANDIDATE && type2 == CEILING_CANDIDATE){
-                        mpGraph[i*mNodenum + j] = CEILING_CEILING;
-                        mpGraph[j*mNodenum + i] = CEILING_CEILING;
-                        mEdgenum++;
+                        type = CEILING_CEILING;
                     } else if(type1 == FLOOR_CANDIDATE && type2 == WALL_CANDIDATE){
-                        mpGraph[i*mNodenum + j] = FLOOR_WALL;
-                        mpGraph[j*mNodenum + i] = FLOOR_WALL;
-                        mEdgenum++;
+                        type = FLOOR_WALL;
                     } else if(type1 == CEILING_CANDIDATE && type2 == WALL_CANDIDATE){
-                        mpGraph[i*mNodenum + j] = CEILING_WALL;
-                        mpGraph[j*mNodenum + i] = CEILING_WALL;
-                        mEdgenum++;
+                        type = CEILING_WALL;
                     }
-                    
+                    mpGraph[i*mNodenum + j] = type;
+                    mpGraph[j*mNodenum + i] = type;
+                    mEdgenum++;
                 }
             }
         }
+
+
     }
     int mNodenum = 0;
     int mEdgenum = 0;
@@ -164,46 +210,6 @@ pcl::visualization::PCLVisualizer::Ptr VisualizeGraph (AdjacencyGraph& graph){
 }
 
 
-pcl::visualization::PCLVisualizer::Ptr simpleVis2 (std::vector<Segment>& segments){
-    pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    viewer->setBackgroundColor (0, 0, 0);
-    std::vector<pcl::PointXYZ> centroids;
-    int seg_id = 0;
-    for (auto s = segments.begin(); s != segments.end(); s++){
-        cout << "degree " << s->mDegree << "\n";
-        cout << "curvature " << s->mCurvature << "\n";
-        cout << "centroid " << s->mCentroid << "\n";
-        if(s->mDegree > 45){
-            *cloud += *(s->mpCloud);
-            cout << "add:" <<    (s->mpCloud->size()) << "\n";
-            centroids.push_back(s->mCentroid);
-        }
-    }
-    int count = 0;
-    float distance = 0;
-    for(int i = 0; i < centroids.size();i++){
-        for(int j = i+1; j < centroids.size();j++){
-            float d = pcl::euclideanDistance(centroids[i], centroids[j]);
-            distance += d;
-            if( d  < 2)
-                viewer->addLine(centroids[i], centroids[j], "id_"+std::to_string(count++));
-        }
-    }
-    cout << "cloud" << (cloud->size()) << "\n";
-    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
-    viewer->addPointCloud<pcl::PointXYZRGB> (cloud, "sample cloud");
-    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 0.5, "sample cloud");
-    
-    //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 0.5, "sample cloud");
-    viewer->addCoordinateSystem (1.0);
-    viewer->initCameraParameters ();
-    
-    return (viewer);
-}
-
-
-
 int main(int argc, char* argv[]){
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
     if ( pcl::io::loadPCDFile <pcl::PointXYZ> (argv[1], *cloud) == -1) {
@@ -233,7 +239,7 @@ int main(int argc, char* argv[]){
     reg.setMinClusterSize (100);
     reg.setMaxClusterSize (1000000);
     reg.setSearchMethod (tree);
-    reg.setNumberOfNeighbours (200);
+    reg.setNumberOfNeighbours (300);
     reg.setInputCloud (cloud);
     //reg.setIndices (indices);
     reg.setInputNormals (normals);
@@ -254,6 +260,7 @@ int main(int argc, char* argv[]){
     
     std::vector<Segment> segments;
     AdjacencyGraph G;
+    int cluster_id = 0;
     for (auto  c = vClusterIndices.begin(); c != vClusterIndices.end(); c++){
         // Generate Segment
         pcl::PointIndices::Ptr inliers(new pcl::PointIndices(*c)); 
@@ -270,9 +277,11 @@ int main(int argc, char* argv[]){
         pcl::computePointNormal (*segment, planeCoef, curvature);        
         double degree = pcl::getAngle3D(planeCoef.cwiseAbs(), Eigen::Vector4f(0, 1, 0, 0), true);  // Roughly computed angle
 
-        Segment seg(*segment, planeCoef, curvature, centroid);
+        Segment seg(*segment, planeCoef, curvature, centroid, 0);
         G.mvSegments.push_back(seg);
-    }
+    }   
+
+    G.MergeOverlappingSegments();
     G.ConstructGraph();
     pcl::visualization::PCLVisualizer::Ptr viewer(VisualizeGraph(G));
     
