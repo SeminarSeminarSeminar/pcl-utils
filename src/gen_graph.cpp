@@ -14,6 +14,7 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/segmentation/region_growing.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/common/common.h> 
 #include <pcl/common/centroid.h>
 #include <pcl/common/distances.h> 
 #include <typeinfo>
